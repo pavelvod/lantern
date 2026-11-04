@@ -1,0 +1,661 @@
+<!doctype html>
+<!-- lantern UI. Holds no rules: renders GET /api/map and posts user operations to POST /api/op. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>lantern</title>
+<script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js" crossorigin="anonymous" integrity="sha384-IWROdLKRsN1UuJywMlWl7/blXQ8GEooN2n7dzTxfEPd7ybYIKCUJ2Ol/1Gpf3YV4"></script>
+<script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js" crossorigin="anonymous" integrity="sha384-2IH3T69EIKYC4c+RXZifZRvaH5SRUdacJW7j6HtE5rQbvLhKKdawxq6vpIzJ7j9M"></script>
+<script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js" crossorigin="anonymous" integrity="sha384-u69h9ebXeSjlg6q/rb1zKTRAGu/h8deCl0409xpS/QJctMKnc4M9Fzkm01VOQdeF"></script>
+<script src="https://unpkg.com/marked@12.0.2/marked.min.js" crossorigin="anonymous" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"></script>
+<meta name="color-scheme" content="light dark">
+<style>
+  :root, [data-theme="light"] {
+    --bg: #f5f6f8; --dot: #dcdfe5; --panel: #ffffff; --panel2: #f9fafb; --raise: rgba(255,255,255,.86);
+    --ink: #1f2430; --mute: #6b7280; --line: #e6e8ec; --accent: #3b6fe0; --accent-soft: #eef3ff;
+    --good: #16855a; --good-soft: #e7f6ee; --bad: #c2410c; --warn: #9a5b00; --warn-soft: #fff4e0;
+    --shadow: 0 8px 30px rgba(17,24,39,.08); --shadow-lg: 0 24px 70px rgba(17,24,39,.22);
+    --node: #ffffff; --edge: #c5cad3; --veil: rgba(17,20,28,.32); --code: #f2f3f5;
+  }
+  [data-theme="dark"] {
+    --bg: #121418; --dot: #23262d; --panel: #1b1e24; --panel2: #20232a; --raise: rgba(27,30,36,.86);
+    --ink: #e5e7eb; --mute: #9aa1ad; --line: #2c3038; --accent: #7aa2ff; --accent-soft: #1f2a44;
+    --good: #4ade80; --good-soft: #15291f; --bad: #fb923c; --warn: #fbbf24; --warn-soft: #2d2412;
+    --shadow: 0 8px 30px rgba(0,0,0,.35); --shadow-lg: 0 24px 70px rgba(0,0,0,.55);
+    --node: #1d2027; --edge: #4b515c; --veil: rgba(0,0,0,.55); --code: #262a32;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; color: var(--ink); background: var(--bg);
+               font: 14px/1.5 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  #cy { position: fixed; inset: 0; background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 22px 22px; }
+  button { white-space: nowrap; font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--ink); cursor: pointer; transition: border-color .12s, background .12s; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  [data-theme="dark"] button.primary { color: #0d1220; }
+  button.approve { border-color: var(--good); color: var(--good); }
+  button.approved { background: var(--good); color: #fff; border-color: var(--good); }
+  [data-theme="dark"] button.approved { color: #0d1a12; }
+  button.danger { color: var(--bad); }
+  #hud { position: fixed; top: 14px; left: 14px; right: 14px; width: max-content; max-width: calc(100vw - 28px); display: flex; gap: 10px; align-items: center;
+         background: var(--raise); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+         border: 1px solid var(--line); border-radius: 14px; padding: 7px 8px 7px 16px; box-shadow: var(--shadow); z-index: 5; }
+  #hud b { font-weight: 600; max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #h-round { color: var(--mute); font-size: 13px; white-space: nowrap; }
+  #hud .pill { border-radius: 999px; padding: 3px 11px; font-size: 12px; font-weight: 500; cursor: pointer; background: var(--warn-soft); color: var(--warn); white-space: nowrap; }
+  #hud #h-focus { background: var(--accent); color: #fff; }
+  #hud .pill.done { background: var(--good-soft); color: var(--good); }
+  #hud button { padding: 5px 13px; font-size: 12px; border-radius: 9px; }
+  #h-theme { padding: 5px 9px !important; }
+  #h-search { font: inherit; font-size: 13px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 9px; width: 200px; outline: none;
+              background: var(--panel); color: var(--ink); transition: width .15s, border-color .15s; }
+  #h-search::placeholder { color: var(--mute); }
+  #h-search:focus { border-color: var(--accent); width: 300px; }
+  #hud.ended { border-color: var(--accent); }
+  #sres { position: fixed; top: 64px; left: 14px; width: 480px; max-height: 60vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line);
+          border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 6; display: none; padding: 4px; }
+  #sres.on { display: block; }
+  #sres .sr { padding: 8px 12px; border-left: 3px solid; border-radius: 6px; cursor: pointer; margin: 2px 0; }
+  #sres .sr:hover, #sres .sr.cur { background: var(--accent-soft); }
+  #sres .st { font-weight: 600; font-size: 13px; } #sres .ss { color: var(--mute); font-size: 12px; }
+  #hint { position: fixed; bottom: 12px; left: 14px; font-size: 12px; color: var(--mute); background: var(--raise); backdrop-filter: blur(8px);
+          border: 1px solid var(--line); padding: 4px 10px; border-radius: 8px; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); padding: 9px 16px; border-radius: 10px; font-size: 13px;
+           box-shadow: var(--shadow-lg); display: none; z-index: 30; max-width: 70vw; }
+  #toast.ok { display: block; background: var(--good); color: #fff; }
+  #toast.err { display: block; background: var(--bad); color: #fff; }
+  #selbar { position: fixed; bottom: 58px; left: 50%; transform: translateX(-50%); display: none; gap: 8px; align-items: center; z-index: 6;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px 6px 16px; box-shadow: var(--shadow-lg); }
+  #selbar.on { display: flex; }
+  #veil { position: fixed; inset: 0; background: var(--veil); backdrop-filter: blur(2px); display: none; z-index: 10; }
+  #veil.on { display: block; }
+  #win { position: fixed; top: 6vh; left: 50%; transform: translateX(-50%); width: min(980px, 88vw); height: 88vh; background: var(--panel); border-radius: 16px; z-index: 11;
+         border: 1px solid var(--line); box-shadow: var(--shadow-lg); display: none; flex-direction: column; overflow: hidden; }
+  #win.on { display: flex; }
+  #w-progress { display: flex; gap: 12px; align-items: center; padding: 12px 56px 0 32px; font-size: 12px; font-weight: 600; color: var(--warn); cursor: pointer; }
+  #w-progress.done { color: var(--good); }
+  #w-progress .track { flex: 1; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  #w-progress .fill { height: 100%; background: currentColor; transition: width .25s; }
+  #w-progress .fog { color: var(--mute); font-weight: 500; white-space: nowrap; }
+  #w-head { padding: 12px 32px 14px; border-bottom: 1px solid var(--line); }
+  #w-meta { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--mute); flex-wrap: wrap; }
+  .badge { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 2px 9px; border-radius: 6px; color: #fff; }
+  .status { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+  .status.todo { background: var(--warn-soft); color: var(--warn); } .status.done { background: var(--good-soft); color: var(--good); }
+  #w-title { font-size: 23px; font-weight: 650; letter-spacing: -.01em; line-height: 1.3; margin: 10px 0 8px; padding-right: 28px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--mute); align-items: center; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; cursor: pointer; color: var(--ink); background: var(--panel2); }
+  .chip:hover { border-color: var(--accent); }
+  .banner { margin-top: 10px; font-size: 13px; background: var(--accent-soft); color: var(--ink); border-radius: 10px; padding: 8px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .banner button { padding: 3px 10px; font-size: 12px; }
+  #w-x { position: absolute; top: 14px; right: 16px; border: none; font-size: 18px; color: var(--mute); background: none; padding: 4px 8px; }
+  #w-scroll { flex: 1; overflow-y: auto; padding: 24px 32px 32px; }
+  .prose { max-width: 72ch; margin: 0 auto; font-size: 15.5px; line-height: 1.72; }
+  .prose h1, .prose h2, .prose h3 { line-height: 1.3; margin: 1.5em 0 .5em; font-size: 1.05em; }
+  .prose code { background: var(--code); padding: 1px 5px; border-radius: 5px; font-size: .88em; }
+  .prose pre { background: var(--code); padding: 12px 14px; border-radius: 10px; overflow-x: auto; }
+  .prose pre code { padding: 0; background: none; }
+  .prose blockquote { margin: 0; padding-left: 14px; border-left: 3px solid var(--line); color: var(--mute); }
+  .prose table { border-collapse: collapse; } .prose td, .prose th { border: 1px solid var(--line); padding: 4px 10px; }
+  .prose a { color: var(--accent); }
+  .empty { color: var(--mute); font-style: italic; }
+  .section { max-width: 72ch; font-size: 15px; margin: 30px auto 0; border-top: 1px solid var(--line); padding-top: 18px; }
+  .section h4 { margin: 0 0 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--mute); }
+  .reply { border: 1px solid var(--line); border-left-width: 3px; border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; cursor: pointer; background: var(--panel); }
+  .reply:hover { background: var(--panel2); border-color: var(--accent); }
+  .reply .rt { font-weight: 600; font-size: 14.5px; } .reply .rs { color: var(--mute); font-size: 12.5px; margin-top: 2px; }
+  .opt { border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; cursor: pointer; transition: border-color .12s, background .12s; }
+  .opt:hover { border-color: var(--accent); }
+  .opt.on { border-color: var(--accent); background: var(--accent-soft); cursor: default; }
+  .opt .ol { font-weight: 600; display: flex; gap: 10px; align-items: center; }
+  .opt .ol::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--mute); flex: none; }
+  .opt.on .ol::before { border-color: var(--accent); background: radial-gradient(var(--accent) 45%, transparent 50%); }
+  .opt .od { color: var(--mute); font-size: 14px; margin: 3px 0 0 24px; }
+  .opt .more { display: none; margin: 10px 0 0 24px; }
+  .opt.on .more { display: block; }
+  .opt input, .opt textarea, #composer textarea { width: 100%; font: 14.5px/1.55 inherit; font-family: inherit; padding: 9px 11px; color: var(--ink);
+         background: var(--panel); border: 1px solid var(--line); border-radius: 9px; outline: none; }
+  .opt input:focus, .opt textarea:focus, #composer textarea:focus { border-color: var(--accent); }
+  .opt textarea { min-height: 70px; resize: vertical; margin-top: 6px; }
+  .mine { border: 1.5px solid var(--good); background: var(--good-soft); border-radius: 12px; padding: 12px 16px; }
+  .mine .ml { font-size: 11px; color: var(--good); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  #w-bottom { border-top: 1px solid var(--line); padding: 12px 32px; background: var(--panel2); }
+  #composer { display: none; margin-bottom: 10px; }
+  #composer.on { display: block; }
+  #composer textarea { min-height: 120px; resize: vertical; }
+  #composer .types { display: flex; gap: 6px; margin-bottom: 8px; }
+  #composer .types button { padding: 3px 11px; font-size: 12px; border-radius: 999px; }
+  #composer .types button.on { color: #fff; }
+  #composer .sub { font-size: 12px; color: var(--mute); margin-top: 4px; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .bar .spacer { flex: 1; }
+  .bar .asks { flex-basis: 100%; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .bar .asks .lbl { font-size: 12px; color: var(--mute); }
+  .ro { font-size: 13px; color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="cy"></div>
+<div id="hud">
+  <b id="h-goal"></b>
+  <span id="h-round" style="color:var(--mute)"></span>
+  <input id="h-search" placeholder="Search nodes  ( / )" autocomplete="off">
+  <span class="pill" id="h-focus" title="The map is focused on this node and its descendants. Open nodes elsewhere are parked: dimmed, and left alone by the agent. Click to clear the focus."></span>
+  <span class="pill" id="h-fog" title="Open fog: areas not pinned down yet. Click to walk through them."></span>
+  <span class="pill" id="h-review" title="Agent nodes you have not reviewed yet. Approve, answer or comment on each one when you get to it; they wait across rounds. Click to open the next one."></span>
+  <button id="h-theme" title="Theme: auto / light / dark"></button>
+  <button id="h-end" class="primary">End turn</button>
+</div>
+<div id="hint">click a node to read · ⌘/Ctrl + click to mark for merge · shift + drag between nodes to link · click a link + Delete to remove it · / to search</div>
+<div id="sres"></div>
+<div id="toast"></div>
+<div id="selbar"><span id="s-count"></span><button class="primary" id="s-merge">Merge into one</button><button id="s-clear">Clear</button></div>
+<div id="veil"></div>
+<div id="win">
+  <button id="w-x" title="Close (Esc)">✕</button>
+  <div id="w-progress" title="Your review progress. Click to open the next node to review.">
+    <span id="w-left"></span><div class="track"><div class="fill" id="w-fill"></div></div><span class="fog" id="w-fog"></span>
+  </div>
+  <div id="w-head">
+    <div id="w-meta"></div>
+    <div id="w-title"></div>
+    <div class="chips" id="w-from"></div>
+    <div id="w-merge"></div>
+  </div>
+  <div id="w-scroll">
+    <div class="prose" id="w-body"></div>
+    <div id="w-answer"></div>
+    <div class="section" id="w-thread"></div>
+  </div>
+  <div id="w-bottom">
+    <div id="composer">
+      <div class="types" id="c-types"></div>
+      <textarea id="c-text" placeholder="First line = title. Everything after it = details (markdown)."></textarea>
+      <div class="sub">⌘/Ctrl + Enter to add · editable until you end the turn</div>
+    </div>
+    <div class="bar" id="w-bar"></div>
+  </div>
+</div>
+
+<script>
+const COLORS = { goal: '#111827', task: '#2f6fde', question: '#d97706', finding: '#0d9488', decision: '#1e8449', fog: '#9ca3af',
+                 answer: '#7c3aed', comment: '#db2777', remark: '#db2777', user_question: '#ea580c', constraint: '#b91c1c' };
+const USER_TYPES = ['answer', 'comment'];
+let M = null, byId = new Map();
+let openId = null, composeType = null, pick = null, editing = false; // pick: {choice: index | 'custom'}
+const picked = new Set(); // ⌘/Ctrl-click marks for merge; view state only
+const $ = id => document.getElementById(id);
+const label = t => t.replace('_', ' ');
+const N = id => byId.get(id);
+const parentsOf = id => M.edges.filter(e => e.to === id).map(e => e.from);
+const childrenOf = id => M.edges.filter(e => e.from === id).map(e => e.to);
+// Requests the agent answers on its turn with new nodes under the node: [kind, icon, tooltip].
+const ASKS = [
+  ['decompose', '⑂', 'Split it into simpler parts, one node each. Use it for a node that holds a list, too.'],
+  ['diverge', '✶', 'Open several different directions from it, as questions or fog.'],
+  ['reflect', '◎', 'Step back and look at it: assumptions, risks, what is missing, how it fits the goal.'],
+  ['challenge', '⚔', 'Assume it was chosen and failed: say why, and give the strongest alternative.'],
+  ['research', '⌕', 'Look it up outside this map: prior art, facts, sources.'],
+  ['example', '▸', 'Make it concrete with one worked example.'],
+];
+const todo = () => M.nodes.filter(n => n.in_queue && !n.handled && !n.parked);
+const fogs = () => M.nodes.filter(n => n.type === 'fog' && n.open && !n.parked);
+// Bodies are markdown from the agent, often copied from the web: raw HTML is shown as text,
+// and links may only go to http(s), mailto or an anchor.
+marked.use({
+  renderer: { html: h => esc(typeof h === 'string' ? h : h.text) },
+  walkTokens: t => { if ((t.type === 'link' || t.type === 'image') && !/^(https?:|mailto:|#)/i.test(t.href || '')) t.href = '#'; },
+});
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function toast(text, ok) { const t = $('toast'); t.textContent = text; t.className = ok ? 'ok' : 'err'; clearTimeout(toast.h); toast.h = setTimeout(() => t.className = '', 3200); }
+
+// ---- server ----
+async function api(op, args, okMsg) {
+  let r, j;
+  try {
+    r = await fetch('/api/op', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op, args, inst: M && M.inst }) });
+    j = await r.json();
+  } catch { toast('Server unreachable. Is lantern.py serve running?', false); return null; }
+  if (!r.ok) { toast(j.error, false); return null; }
+  setMap(j.map);
+  if (okMsg) toast(okMsg, true);
+  return j.result ?? true;
+}
+async function poll() {
+  try {
+    const v = await (await fetch('/api/map')).json();
+    if (M && v.inst !== M.inst) return location.reload(); // another server run, maybe another map: start clean
+    if (!M || v.mtime !== M.mtime) setMap(v, true);
+  } catch { toast('Server unreachable. Is lantern.py serve running?', false); }
+}
+function setMap(v, fromPoll = false) {
+  M = v; byId = new Map(v.nodes.map(n => [n.id, n]));
+  for (const id of [...picked]) if (!byId.has(id)) picked.delete(id);
+  renderSearch(false); renderGraph(); renderHud(); renderSelbar();
+  if (openId && !(fromPoll && (composeType || pick || editing))) renderWin(); // never wipe what the user is typing
+}
+
+// ---- graph ----
+// ---- theme: auto follows the system; the choice is stored per browser ----
+const THEMES = ['auto', 'light', 'dark'], THEME_ICON = { auto: '◐', light: '☀', dark: '☾' };
+let themePref = localStorage.getItem('lantern:theme') || 'auto';
+const sysDark = matchMedia('(prefers-color-scheme: dark)');
+const isDark = () => themePref === 'dark' || (themePref === 'auto' && sysDark.matches);
+const cssVar = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+function mix(hex, into, a) { // blend hex colour `hex` into `into` with weight a
+  hex = hex || '#888888'; // the Shift-drag ghost has no type colour
+  const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(hex), p(into)];
+  return '#' + x.map((v, i) => Math.round(v * a + y[i] * (1 - a)).toString(16).padStart(2, '0')).join('');
+}
+// downward S-curve: leaves the source straight down, enters the target straight down
+function sCurve(ele) {
+  const s = ele.source().position(), t = ele.target().position();
+  const vx = t.x - s.x, vy = t.y - s.y, L2 = vx * vx + vy * vy || 1, k = vy / 2;
+  const pt = (cx, cy) => [(cx * vx + cy * vy) / L2, (vx * cy - vy * cx) / Math.sqrt(L2)];
+  const [w1, d1] = pt(0, k), [w2, d2] = pt(vx, vy - k);
+  return { w: [w1, w2], d: [d1, d2] };
+}
+function cyStyle() {
+  const node = cssVar('--node'), ink = cssVar('--ink'), edge = cssVar('--edge'), accent = cssVar('--accent'), dark = isDark();
+  const edgeColor = ele => ele.data('color') === COLORS.goal ? ink : ele.data('color');
+  const ring = (c, o = 0.35, pad = 8) => ({ 'underlay-color': c, 'underlay-opacity': o, 'underlay-padding': pad, 'underlay-shape': 'round-rectangle' });
+  return [
+    { selector: 'node', style: {
+      'shape': 'round-rectangle', 'corner-radius': 10, 'width': 250, 'height': 'data(h)', 'padding': 0,
+      'background-color': ele => mix(ele.data('color'), node, dark ? 0.16 : 0.07),
+      'border-width': 1.5, 'border-color': ele => mix(ele.data('color'), node, dark ? 0.75 : 0.6),
+      'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': 222, 'font-size': 14, 'line-height': 1.35,
+      'font-family': 'Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif', 'font-weight': 500,
+      'text-valign': 'center', 'color': ink } },
+    { selector: 'node.user', style: { 'shape': 'cut-rectangle' } },
+    { selector: 'node.fresh', style: { 'border-width': 2.5, 'border-style': 'dashed', 'border-color': 'data(color)' } },
+    { selector: 'node.locked', style: { 'opacity': 0.92 } },
+    { selector: '.parked', style: { 'opacity': 0.22 } },
+    { selector: 'node.todo', style: ring('#f59e0b', dark ? 0.3 : 0.28) },
+    { selector: 'node.unclear', style: ring('#ef4444', 0.3) },
+    { selector: 'node.merging', style: ring('#8b5cf6', 0.3) },
+    { selector: 'node.marked', style: ring(accent, 0.45, 10) },
+    // an edge takes its source node's colour, so crossing lines stay apart; the goal is near-black, so its edges take the ink
+    { selector: 'edge', style: { 'width': 2.6, 'line-color': edgeColor, 'target-arrow-color': edgeColor,
+      'target-arrow-shape': 'triangle', 'arrow-scale': 1.3, 'opacity': 0.9,
+      'curve-style': 'unbundled-bezier', 'edge-distances': 'node-position', 'control-point-weights': ele => sCurve(ele).w,
+      'control-point-distances': ele => sCurve(ele).d, 'source-endpoint': '0 50%', 'target-endpoint': '0 -50%' } },
+    { selector: 'edge.fresh', style: { 'line-style': 'dashed', 'line-dash-pattern': [7, 4], 'width': 2.6 } },
+    { selector: 'edge.near', style: { 'width': 3.6, 'opacity': 1, 'z-index': 10 } },
+    { selector: 'edge.far', style: { 'opacity': 0.12 } },
+    { selector: 'node.far', style: { 'opacity': 0.35 } },
+    { selector: 'edge:selected', style: { 'line-color': '#ef4444', 'target-arrow-color': '#ef4444', 'width': 3 } },
+    { selector: 'node:selected', style: { 'overlay-opacity': 0 } },
+    { selector: 'node:active', style: { 'overlay-opacity': 0.06 } },
+    { selector: 'node.dim', style: { 'opacity': 0.18 } },
+    { selector: 'edge.dim', style: { 'opacity': 0.12 } },
+    { selector: 'edge.parked', style: { 'opacity': 0.15 } },
+    { selector: 'node.hit', style: ring('#facc15', 0.6, 10) },
+    { selector: '.ghost', style: { 'width': 1, 'height': 1, 'line-style': 'dotted', 'line-color': accent, 'target-arrow-shape': 'none', 'label': '' } },
+  ];
+}
+function applyTheme() {
+  document.documentElement.dataset.theme = isDark() ? 'dark' : 'light';
+  $('h-theme').textContent = THEME_ICON[themePref];
+  $('h-theme').title = `Theme: ${themePref} (click to change)`;
+  cy.style(cyStyle());
+}
+$('h-theme').onclick = () => { themePref = THEMES[(THEMES.indexOf(themePref) + 1) % 3]; localStorage.setItem('lantern:theme', themePref); applyTheme(); };
+sysDark.addEventListener('change', applyTheme);
+document.documentElement.dataset.theme = isDark() ? 'dark' : 'light'; // before cyStyle() reads the CSS variables
+
+const cy = cytoscape({
+  container: $('cy'),
+  style: cyStyle(),
+  minZoom: 0.15, maxZoom: 2.5,
+  wheelSensitivity: 0.2, // default 1 jumps several zoom levels per trackpad flick
+});
+// hovering a node lights up its own links and fades the rest
+cy.on('mouseover', 'node', e => {
+  const n = e.target, near = n.connectedEdges();
+  cy.elements().not(near).not(n).not(near.connectedNodes()).addClass('far');
+  near.addClass('near');
+});
+cy.on('mouseout', 'node', () => cy.elements().removeClass('far near'));
+cy.on('free', 'node', () => cy.style().update());
+applyTheme();
+
+// ---- search: every query word must hit the id, title, body or options; a typo-tolerant match inside one title word (same first letter, letters in order) counts too ----
+let query = '', hits = null, cur = 0;
+function subseq(word, text) { let i = 0; for (const c of text) if (c === word[i]) i++; return i === word.length; }
+function score(n, words) {
+  const title = n.title.toLowerCase(), rest = [n.body, ...(n.options || []).map(o => o.label + ' ' + (o.detail || ''))].join(' ').toLowerCase();
+  let s = 0;
+  for (const w of words) {
+    const t = n.id === w ? 10 : title.includes(w) ? 3 : rest.includes(w) ? 1 : w.length > 2 && title.split(/[^a-z0-9]+/).some(tw => tw[0] === w[0] && subseq(w, tw)) ? 0.5 : 0;
+    if (!t) return 0;
+    s += t;
+  }
+  return s;
+}
+function results() {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return M.nodes.map(n => [score(n, words), n]).filter(([s]) => s > 0).sort((a, b) => b[0] - a[0]).map(([, n]) => n);
+}
+function renderSearch(graph = true) {
+  const r = results();
+  hits = query.trim() ? new Set(r.map(n => n.id)) : null;
+  cur = Math.min(cur, Math.max(r.length - 1, 0));
+  const box = $('sres');
+  if (graph) box.classList.toggle('on', !!hits);
+  box.innerHTML = !hits ? '' : r.length ? r.slice(0, 15).map((n, i) => `
+    <div class="sr${i === cur ? ' cur' : ''}" data-go="${n.id}" style="border-left-color:${COLORS[n.type]}">
+      <div class="st">${esc(n.title)}</div><div class="ss">${n.id} · ${label(n.type)} · ${n.author === 'user' ? 'you' : 'agent'} · round ${n.round}</div></div>`).join('')
+    + (r.length > 15 ? `<div class="sr ss">${r.length - 15} more…</div>` : '') : '<div class="sr ss">No match.</div>';
+  box.querySelectorAll('[data-go]').forEach(el => el.onclick = () => goTo(el.dataset.go));
+  if (graph) renderGraph();
+  return r;
+}
+function goTo(id) {
+  const el = cy.getElementById(id);
+  if (el.nonempty()) cy.animate({ center: { eles: el }, duration: 250 });
+  $('sres').classList.remove('on');
+  openNode(id);
+}
+$('h-search').addEventListener('input', e => { query = e.target.value; cur = 0; renderSearch(); });
+$('h-search').addEventListener('focus', () => { if (hits) $('sres').classList.add('on'); });
+$('h-search').addEventListener('keydown', e => {
+  e.stopPropagation();
+  const r = results();
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); cur = (cur + (e.key === 'ArrowDown' ? 1 : -1) + r.length) % Math.max(r.length, 1); renderSearch(); }
+  else if (e.key === 'Enter' && r[cur]) goTo(r[cur].id);
+  else if (e.key === 'Escape') { e.target.value = query = ''; renderSearch(); e.target.blur(); }
+});
+
+// ponytail: line count estimated from characters (~27 per line at 14px in 222px), not measured; measure via canvas if boxes look off
+const MAX_CHARS = 120;
+const clip = t => t.length > MAX_CHARS ? t.slice(0, t.lastIndexOf(' ', MAX_CHARS) + 1 || MAX_CHARS).trimEnd() + ' …' : t;
+const nodeHeight = t => 38 + 19 * Math.ceil((clip(t).length + 4) / 27);
+
+function renderGraph() {
+  const prev = cy.nodes().length;
+  cy.elements().remove();
+  cy.add(M.nodes.map(n => {
+    const mark = n.parked ? '  ◌ parked' : n.merge ? '  ⇢ merge' : n.to_fog ? '  → fog' : n.unclear ? '  ? unclear' : n.asks.length ? `  ⋯ ${n.asks.join(' + ')}` : n.in_queue ? (n.handled ? '  ✓' : '  ● review')
+      : '';
+    const re = n.rewritten ? '  ✎ rewritten' : '';
+    return { group: 'nodes',
+      data: { id: n.id, color: COLORS[n.type], h: nodeHeight(n.title),
+              label: `${label(n.type).toUpperCase()}${mark}${re}\n${clip(n.title)}` },
+      classes: [n.author, n.locked ? 'locked' : 'fresh', n.in_queue && !n.handled && !n.parked ? 'todo' : '',
+                n.merge ? 'merging' : '', n.unclear ? 'unclear' : '', picked.has(n.id) ? 'marked' : '', n.parked ? 'parked' : '',
+                hits ? (hits.has(n.id) ? 'hit' : 'dim') : ''].join(' ') };
+  }));
+  cy.add(M.edges.map(e => ({ group: 'edges',
+    data: { id: `${e.from}->${e.to}`, source: e.from, target: e.to, color: COLORS[N(e.from).type] },
+    classes: (e.locked ? 'locked' : 'fresh') + (hits ? ' dim' : '') + (N(e.from).parked || N(e.to).parked ? ' parked' : '') })));
+  cy.layout({ name: 'dagre', rankDir: 'TB', nodeSep: 46, rankSep: 84, animate: false, fit: prev === 0, padding: 80 }).run();
+  cy.style().update(); // control points depend on positions
+}
+
+function renderProgress() {
+  const left = todo().length, total = M.queue, nf = fogs().length;
+  $('w-progress').style.display = total || nf ? '' : 'none';
+  $('w-progress').classList.toggle('done', !left);
+  $('w-left').textContent = !total ? '' : left ? `${left} of ${total} left to review` : `all ${total} reviewed ✓`;
+  $('w-fill').style.width = total ? `${100 * (total - left) / total}%` : '0';
+  $('w-fill').parentElement.style.display = total ? '' : 'none';
+  $('w-fog').textContent = nf ? `☁ ${nf} open fog` : '';
+}
+
+function renderHud() {
+  renderProgress();
+  const goal = M.nodes.find(n => n.type === 'goal'), left = todo().length;
+  $('hud').classList.toggle('ended', M.ended);
+  $('h-goal').textContent = goal ? goal.title : M.slug;
+  $('h-round').textContent = `· round ${M.round}${M.agenda ? ` · ${M.agenda} new from you` : ''}${M.ended ? ' · turn ended: run /lantern:turn' : ''}`;
+  const rv = $('h-review');
+  rv.style.display = M.queue ? '' : 'none';
+  rv.textContent = left ? `${M.queue - left}/${M.queue} reviewed` : `all ${M.queue} reviewed ✓`;
+  rv.classList.toggle('done', !left);
+  const fc = $('h-focus'), fn = M.focus && N(M.focus);
+  fc.style.display = fn ? '' : 'none';
+  if (fn) fc.textContent = `◉ ${fn.title.length > 40 ? fn.title.slice(0, 40) + "…" : fn.title}  ✕`;
+  const fg = $('h-fog'), nf = fogs().length;
+  fg.style.display = nf ? '' : 'none';
+  fg.textContent = `☁ ${nf} fog`;
+  $('h-end').textContent = M.ended ? 'Unlock turn' : 'End turn';
+  $('h-end').className = M.ended ? '' : 'primary';
+}
+
+function renderSelbar() { $('selbar').classList.toggle('on', picked.size > 0); $('s-count').textContent = `${picked.size} marked`; }
+function render() { renderSearch(false); renderGraph(); renderSelbar(); if (openId) renderWin(); }
+
+function nextFog(afterId) {
+  const f = fogs();
+  if (!f.length) return;
+  const k = f[(f.findIndex(n => n.id === afterId) + 1) % f.length].id;
+  return k === afterId ? undefined : k;
+}
+
+function nextTodo(afterId) {
+  const t = todo(), i = t.findIndex(n => n.id === afterId);
+  return (t[i + 1] || t.find(n => n.id !== afterId) || {}).id;
+}
+
+// ---- reading window ----
+function openNode(id) {
+  openId = id; composeType = null; pick = null; editing = false;
+  $('veil').classList.add('on'); $('win').classList.add('on');
+  renderWin();
+  $('w-scroll').scrollTop = 0;
+}
+function closeWin() { openId = null; composeType = null; pick = null; editing = false; $('veil').classList.remove('on'); $('win').classList.remove('on'); }
+
+const card = k => `
+  <div class="reply" data-go="${k.id}" style="border-left-color:${COLORS[k.type]}">
+    <div class="rt">${esc(k.title)}</div>
+    <div class="rs">${label(k.type)} · ${k.author === 'user' ? 'you' : 'agent'} · round ${k.round}${k.body ? ' · ' + esc(k.body.replace(/[#>*|`]/g, '').slice(0, 140)) + '…' : ''}</div>
+  </div>`;
+
+function renderWin() {
+  const n = openId && N(openId);
+  if (!n) return closeWin();
+  const status = n.in_queue ? (n.handled
+      ? `<span class="status done">✓ ${n.approved ? 'approved' : n.to_fog ? 'marked: the agent rewrites it as fog' : n.unclear ? 'marked unclear: the agent rewrites it' : n.asks.length ? `asked: ${n.asks.join(' + ')}` : n.merge ? 'in merge' : n.answer ? 'answered' : 'replied'}</span>`
+      : `<span class="status todo">needs your ${n.type === 'question' ? 'answer' : 'approval'}</span>`) : '';
+  $('w-meta').innerHTML = `<span class="badge" style="background:${COLORS[n.type]}">${label(n.type)}</span>
+    <span>${n.author === 'user' ? 'you' : 'agent'} · round ${n.round}${n.locked ? ' · 🔒' : ''}${n.rewritten ? ' · ✎ rewritten after you marked it unclear' : ''}</span>${status}`;
+  $('w-title').textContent = n.title;
+  const ps = parentsOf(n.id);
+  $('w-from').innerHTML = ps.length ? 'comes from ' + ps.map(p => `<span class="chip" data-go="${p}">${esc(N(p).title)}</span>`).join('') : '';
+  $('w-merge').innerHTML = n.merge ? `<div class="banner">Part of a pending merge. The agent condenses it into one node on its turn.
+      ${M.ended ? '' : '<button id="b-unmerge">Cancel merge</button>'}</div>` : '';
+  $('w-body').innerHTML = n.body ? marked.parse(n.body) : (n.type === 'question' ? '' : '<p class="empty">No details.</p>');
+  renderAnswer(n);
+  const kids = childrenOf(n.id).map(N);
+  $('w-thread').style.display = kids.length ? '' : 'none';
+  $('w-thread').innerHTML = `<h4>Continues in (${kids.length})</h4>` + kids.map(card).join('');
+  $('win').querySelectorAll('[data-go]').forEach(el => el.onclick = () => openNode(el.dataset.go));
+  if ($('b-unmerge')) $('b-unmerge').onclick = () => api('cancel_merge', { id: n.merge }, 'Merge cancelled.');
+  renderBottom(n);
+}
+
+// The answer lives "inside" the question while you read; on submit it becomes its own node.
+function renderAnswer(n) {
+  const box = $('w-answer');
+  if (n.type !== 'question') { box.className = ''; box.innerHTML = ''; return; }
+  box.className = 'section';
+  const a = n.answer && N(n.answer);
+  if (a) {
+    box.innerHTML = `<h4>Your answer</h4><div class="mine"><div class="ml">${a.choice != null ? 'picked option' : 'own answer'} · round ${a.round}</div>
+      <div style="font-weight:600;font-size:17px;margin-top:2px">${esc(a.title)}</div>${a.body ? `<div style="margin-top:6px">${marked.parse(a.body)}</div>` : ''}</div>`;
+    return;
+  }
+  if (M.ended) { box.innerHTML = '<h4>Answer</h4><p class="empty">Not answered. Unlock your turn to answer.</p>'; return; }
+  if (n.unclear || n.merge) { box.innerHTML = `<h4>Answer</h4><p class="empty">${n.unclear ? 'Marked unclear: answer it after the agent rewrites it.' : 'In a pending merge: the agent condenses it first.'}</p>`; return; }
+  const opt = (i, inner) => `<div class="opt ${pick && pick.choice === i ? 'on' : ''}" data-pick="${i}">${inner}</div>`;
+  box.innerHTML = '<h4>Your answer</h4>' +
+    (n.options || []).map((o, i) => opt(i, `<div class="ol">${esc(o.label)}</div>${o.detail ? `<div class="od">${esc(o.detail)}</div>` : ''}
+      <div class="more"><textarea id="a-com-${i}" placeholder="Comment for the agent (optional)"></textarea></div>`)).join('') +
+    opt('custom', `<div class="ol">Something else…</div>
+      <div class="more"><input id="a-own" placeholder="Your answer"><textarea id="a-com-custom" placeholder="Comment for the agent (optional)"></textarea></div>`);
+  box.querySelectorAll('.opt').forEach(el => el.onclick = e => {
+    if (e.target.closest('textarea, input')) return;
+    const c = el.dataset.pick === 'custom' ? 'custom' : +el.dataset.pick;
+    if (pick && pick.choice === c) return;
+    pick = { choice: c };
+    box.querySelectorAll('.opt').forEach(o => o.classList.toggle('on', o === el));
+    (el.querySelector('input') || el.querySelector('textarea')).focus();
+    renderBottom(n);
+  });
+}
+
+async function submitAnswer() {
+  const custom = pick.choice === 'custom';
+  const r = await api('answer', { id: openId, choice: custom ? null : pick.choice, text: custom ? $('a-own').value : null,
+                                  comment: $(`a-com-${pick.choice}`).value.trim() }, 'Answer added.');
+  if (r !== null) { pick = null; renderWin(); }
+}
+
+function renderBottom(n) {
+  editing = false;
+  $('composer').classList.toggle('on', !!composeType);
+  const on = (id, f) => { const el = $(id); if (el) el.onclick = f; };
+  const nxt = nextTodo(n.id), nf = n.type === 'fog' && n.open ? nextFog(n.id) : undefined;
+  const own = n.author === 'user' && !n.locked;
+  const tail = `<span class="spacer"></span>
+    ${nf ? '<button id="b-nfog">Next FOG →</button>' : ''}${nxt ? '<button id="b-next">Next to review →</button>' : ''}<button id="b-close">Close</button>`;
+  if (M.ended) {
+    $('w-bar').innerHTML = '<span class="ro">Turn ended: read-only. Unlock it from the top bar to change anything.</span>' + tail;
+  } else if (composeType) {
+    $('c-types').innerHTML = USER_TYPES.filter(t => t !== 'answer' || n.type === 'task').map(t =>
+      `<button data-t="${t}" class="${t === composeType ? 'on' : ''}" style="${t === composeType ? `background:${COLORS[t]};border-color:${COLORS[t]}` : ''}">${label(t)}</button>`).join('');
+    $('c-types').querySelectorAll('button').forEach(b => b.onclick = () => { composeType = b.dataset.t; renderBottom(n); $('c-text').focus(); });
+    $('w-bar').innerHTML = `<button class="primary" id="b-add">Add ${label(composeType)}</button><button id="b-cancel">Cancel</button>`;
+  } else {
+    const isQ = n.type === 'question', a = isQ && n.answer && N(n.answer);
+    $('w-bar').innerHTML =
+      (isQ && !a && !n.unclear && !n.merge ? `<button class="primary" id="b-submit" ${pick ? '' : 'disabled'}>Submit answer</button>` : '') +
+      (a && !a.locked ? '<button id="b-reanswer">Change answer</button>' : '') +
+      (n.in_queue && !isQ ? `<button id="b-approve" class="${n.approved ? 'approved' : 'approve'}">${n.approved ? '✓ Approved (undo)' : '✓ Approve'}</button>` : '') +
+      (n.in_queue && !a && !n.merge ? `<button id="b-unclear" class="${n.unclear && !n.to_fog ? 'approved' : ''}">${n.unclear && !n.to_fog ? '? Unclear (undo)' : '? Unclear: rewrite it'}</button>` : '') +
+      (n.in_queue && !a && !n.merge && !['fog', 'goal'].includes(n.type) ? `<button id="b-tofog" class="${n.to_fog ? 'approved' : ''}">${n.to_fog ? '☁ To FOG (undo)' : '☁ Convert to FOG'}</button>` : '') +
+      (!n.merge && !n.unclear ? '<div class="asks"><span class="lbl">Ask the agent:</span>' + ASKS.filter(([k]) => !['decompose', 'diverge'].includes(k) || n.author === 'agent').map(([k, icon, tip]) => {
+        const set = n.asks.includes(k);
+        return `<button data-ask="${k}" title="${tip}" class="${set ? 'approved' : ''}">${icon} ${k[0].toUpperCase() + k.slice(1)}${set ? ' (undo)' : ''}</button>`;
+      }).join('') + '</div>' : '') +
+      (n.type === 'task' ? '<button id="b-ans">Answer</button>' : '') +
+      '<button id="b-com">Comment</button>' +
+      (n.type !== 'goal' && M.focus !== n.id ? '<button id="b-focus" title="Focus the map on this node and its descendants, park the other open nodes, and end your turn.">◉ Focus</button>' : '') +
+      (own ? '<button id="b-edit">Edit</button><button class="danger" id="b-del">Delete</button>' : '') + tail;
+    const compose = t => { composeType = t; $('c-text').value = ''; renderBottom(n); $('c-text').focus(); };
+    on('b-submit', submitAnswer);
+    on('b-reanswer', () => api('rm', { id: a.id }, 'Answer removed.'));
+    on('b-approve', async () => {
+      const was = n.approved;
+      const r = await api(was ? 'unapprove' : 'approve', { id: n.id }, was ? 'Approval withdrawn.' : 'Approved.');
+      if (r !== null && !was) { const k = nextTodo(n.id); if (k) openNode(k); }
+    });
+    on('b-unclear', async () => {
+      const was = n.unclear && !n.to_fog;
+      const r = await api(was ? 'clear_unclear' : 'unclear', { id: n.id }, was ? 'Unclear mark withdrawn.' : 'Marked unclear. The agent rewrites it on its turn.');
+      if (r !== null && !was) { const k = nextTodo(n.id); if (k) openNode(k); }
+    });
+    on('b-tofog', async () => {
+      const was = n.to_fog;
+      const r = await api(was ? 'clear_unclear' : 'to_fog', { id: n.id }, was ? 'Fog mark withdrawn.' : 'Marked. The agent rewrites it as fog on its turn.');
+      if (r !== null && !was) { const k = nextTodo(n.id); if (k) openNode(k); }
+    });
+    $('w-bar').querySelectorAll('[data-ask]').forEach(b => b.onclick = () => {
+      const kind = b.dataset.ask, was = n.asks.includes(kind);
+      api(was ? 'unask' : 'ask', { id: n.id, kind }, was ? 'Request withdrawn.' : `Asked. The agent will ${kind} it on its turn.`);
+    });
+    on('b-focus', async () => { if (await api('focus', { id: n.id }, 'Focused. Turn ended: now run /lantern:turn in Claude Code.') !== null) closeWin(); });
+    on('b-ans', () => compose('answer'));
+    on('b-com', () => compose('comment'));
+    on('b-del', async () => { if (await api('rm', { id: n.id }, 'Deleted.') !== null) closeWin(); });
+    on('b-edit', () => editInPlace(n));
+  }
+  on('b-add', submitCompose);
+  on('b-cancel', () => { composeType = null; renderWin(); });
+  on('b-close', closeWin);
+  on('b-next', () => openNode(nxt));
+  on('b-nfog', () => openNode(nf));
+}
+
+function splitText(v) { const [title, ...rest] = v.split('\n'); return { title, body: rest.join('\n').trim() }; }
+
+async function submitCompose() {
+  const r = await api('add', { type: composeType, ...splitText($('c-text').value), parents: [openId] }, `Added ${label(composeType)}.`);
+  if (r !== null) { composeType = null; renderWin(); }
+}
+
+function editInPlace(n) {
+  composeType = null;
+  $('composer').classList.add('on');
+  $('c-types').innerHTML = `<span style="font-size:12px;color:var(--mute)">editing this ${label(n.type)}</span>`;
+  $('c-text').value = n.title + (n.body ? '\n' + n.body : '');
+  $('w-bar').innerHTML = '<button class="primary" id="b-save">Save</button><button id="b-cancel">Cancel</button>';
+  editing = true;
+  $('b-save').onclick = async () => { if (await api('edit', { id: n.id, ...splitText($('c-text').value) }, 'Saved.') !== null) renderWin(); };
+  $('b-cancel').onclick = () => { $('composer').classList.remove('on'); renderWin(); };
+  $('c-text').focus();
+}
+
+$('c-text').onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) ($('b-add') || $('b-save'))?.click(); };
+$('w-x').onclick = closeWin;
+$('w-progress').onclick = () => { const k = nextTodo(openId); if (k) openNode(k); };
+$('veil').onclick = closeWin;
+
+// ---- graph interactions ----
+cy.on('tap', 'node', e => {
+  const oe = e.originalEvent || {}, id = e.target.id();
+  if (e.target.hasClass('ghost') || oe.shiftKey) return;
+  if (oe.metaKey || oe.ctrlKey) { picked.has(id) ? picked.delete(id) : picked.add(id); render(); return; }
+  openNode(id);
+});
+
+let linkFrom = null;
+const shiftMode = on => { cy.autoungrabify(on); cy.userPanningEnabled(!on); cy.boxSelectionEnabled(!on); };
+document.addEventListener('keydown', e => { if (e.key === 'Shift' && !openId) shiftMode(true); });
+document.addEventListener('keyup', e => { if (e.key === 'Shift') shiftMode(false); });
+cy.on('tapstart', 'node', e => {
+  if (!e.originalEvent?.shiftKey) return;
+  linkFrom = e.target.id();
+  cy.add([{ group: 'nodes', data: { id: 'ghost' }, position: { ...e.position }, classes: 'ghost' },
+          { group: 'edges', data: { id: 'ghostedge', source: linkFrom, target: 'ghost' }, classes: 'ghost' }]);
+});
+cy.on('tapdrag', e => { if (linkFrom) cy.getElementById('ghost').position({ ...e.position }); });
+cy.on('tapend', e => {
+  if (!linkFrom) return;
+  const p = e.position, from = linkFrom;
+  linkFrom = null;
+  cy.remove('#ghost');
+  const hit = cy.nodes().filter(n => { const b = n.boundingBox({ includeLabels: false }); return p.x >= b.x1 && p.x <= b.x2 && p.y >= b.y1 && p.y <= b.y2; }).first();
+  if (hit.nonempty() && hit.id() !== from) api('link', { from, to: hit.id() }, 'Linked.');
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea') && e.key !== 'Escape') return;
+  if (e.key === '/' && !openId) { e.preventDefault(); $('h-search').focus(); return; }
+  if (e.key === 'Escape') { if (composeType) { composeType = null; renderWin(); } else if (openId) closeWin(); else { picked.clear(); render(); } return; }
+  if (openId || !['Delete', 'Backspace'].includes(e.key)) return;
+  const edge = cy.edges(':selected').first();
+  if (edge.nonempty()) api('unlink', { from: edge.data('source'), to: edge.data('target') }, 'Link removed.');
+});
+
+$('h-end').onclick = async () => {
+  const ending = !M.ended;
+  await api(ending ? 'end_turn' : 'unlock', {}, ending ? 'Turn ended. Now run /lantern:turn in Claude Code.' : 'Turn unlocked.');
+};
+$('h-focus').onclick = () => api('unfocus', {}, 'Focus cleared: the whole map is back.');
+$('h-fog').onclick = () => { const k = fogs()[0]; if (k) openNode(k.id); };
+$('h-review').onclick = () => { const k = nextTodo(null); if (k) openNode(k); };
+$('s-merge').onclick = async () => { if (await api('merge', { ids: [...picked] }, 'Merge requested. The agent condenses it into one node on its turn.') !== null) { picked.clear(); render(); } };
+$('s-clear').onclick = () => { picked.clear(); render(); };
+window.addEventListener('resize', () => cy.resize());
+
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>

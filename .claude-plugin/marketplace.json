@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "lantern",
+  "description": "Marketplace for the lantern plugin.",
+  "owner": { "name": "Pavel Vodolazov" },
+  "plugins": [
+    { "name": "lantern", "source": "./", "description": "Round-based brainstorming maps that lead through the fog." }
+  ]
+}

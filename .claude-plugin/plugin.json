@@ -1,0 +1,9 @@
+{
+  "name": "lantern",
+  "version": "0.4.0",
+  "description": "Brainstorm a big idea over many sessions as a round-based map: the agent grills and leads, the user answers in a web graph, fog turns into decisions.",
+  "author": { "name": "Pavel Vodolazov" },
+  "license": "MIT",
+  "keywords": ["brainstorming", "planning", "grilling", "dag", "map"],
+  "skills": "./skills/"
+}

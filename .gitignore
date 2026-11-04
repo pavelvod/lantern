@@ -1,0 +1,6 @@
+__pycache__/
+.lantern/
+.dagmap/
+.DS_Store
+.venv/
+docs/
