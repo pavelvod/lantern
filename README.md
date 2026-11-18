@@ -4,6 +4,9 @@
 
 A Claude Code plugin for brainstorming a big idea over many sessions. A map is a DAG of goals, questions, decisions, findings and fog. The user works in a web graph; the agent takes turns through a CLI and leads the user through the fog, a round at a time. Closed rounds are locked, but the user can still comment on them.
 
+<p align="center"><a href="examples/README.md"><img src="examples/screenshots/tour.gif" alt="A tour of three example maps: the graph, a question with options, a finding with sources, the agent correcting itself, and the final plan and design doc" width="100%"></a></p>
+<p align="center"><sub>From three example maps. <a href="examples/README.md">Open them yourself</a>.</sub></p>
+
 ## Why lantern
 
 lantern grew out of [grill-me](https://github.com/mattpocock/skills), a skill that has the agent interview you about a plan: it walks down each branch of the design tree, one question at a time, with a recommended answer for each. The idea is right: an agent that leads, asks the hard questions and recommends, finds the gaps a plan hides. The medium is the problem. A chat is a line, but a plan is a tree.
@@ -42,6 +45,8 @@ The methods apply across the whole map, every turn, not only when you ask. They 
 Shared rules for every skill: `RULES.md`. CLI and server: `bin/lantern.py` (stdlib only), UI: `bin/ui.html`.
 
 Maps live in `<cwd>/.lantern/<slug>.json`. Maps from before the rename, in `.dagmap/`, still open.
+
+Three finished example maps, with steps to open and continue them: `examples/README.md`.
 
 ## Install
 
