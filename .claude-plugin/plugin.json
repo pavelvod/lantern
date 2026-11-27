@@ -1,9 +1,13 @@
 {
   "name": "lantern",
   "version": "0.4.0",
-  "description": "Brainstorm a big idea over many sessions as a round-based map: the agent grills and leads, the user answers in a web graph, fog turns into decisions.",
+  "description": "Round-based brainstorming maps for big ideas: Claude leads and asks the sharp questions, you answer in a local web graph, and fog turns into decisions over many sessions.",
   "author": { "name": "Pavel Vodolazov" },
+  "homepage": "https://github.com/pavelvod/lantern",
+  "repository": "https://github.com/pavelvod/lantern",
   "license": "MIT",
-  "keywords": ["brainstorming", "planning", "grilling", "dag", "map"],
+  "keywords": ["brainstorming", "planning", "grilling", "decision-making", "design-doc", "mind-map", "graph", "web-ui"],
+  "icon": "./assets/logo.jpg",
+  "network": { "hosts": ["unpkg.com"] },
   "skills": "./skills/"
 }

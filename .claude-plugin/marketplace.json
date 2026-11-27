@@ -4,6 +4,6 @@
   "description": "Marketplace for the lantern plugin.",
   "owner": { "name": "Pavel Vodolazov" },
   "plugins": [
-    { "name": "lantern", "source": "./", "description": "Round-based brainstorming maps that lead through the fog." }
+    { "name": "lantern", "source": "./", "description": "Round-based brainstorming maps: Claude leads, you answer in a local web graph." }
   ]
 }

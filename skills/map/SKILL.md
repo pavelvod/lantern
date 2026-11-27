@@ -25,6 +25,6 @@ Read `../../RULES.md` (relative to this skill's base directory) first. `L` below
    ...
    MAP
    ```
-3. Survey breadth-first across the whole space, not deep on one thread. First list the independent dimensions of the destination (for example users, data, interfaces, failure modes, cost, operations: whichever apply). Every dimension gets at least one node. Add what you find under the goal (or under each other). Make at most 5 of these questions: the ones whose answers shape the rest. Make the remainder tasks and fog.
+3. Survey breadth-first across the whole space, not deep on one thread. First list the independent dimensions of the destination (for example users, data, interfaces, failure modes, cost, operations: whichever apply). Every dimension gets at least one node. Add what you find under the goal (or under each other). Make at most 3 of these questions: the ones whose answers shape the rest. Make the remainder tasks and fog.
 4. `$L close-round <slug>`. The user's turn starts.
 5. Start the UI: read `../serve/SKILL.md` (relative to this skill's base directory) and follow it, then stop. Charting resolves nothing.

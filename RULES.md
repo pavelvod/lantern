@@ -32,6 +32,8 @@ $L ask <slug> <id> decompose|diverge|reflect|challenge|research|example   # the 
 $L close-round <slug>
 ```
 
+`L` holds the path only, never `python3 <path>` or other words: zsh does not split a variable into a command and its arguments, so `$L` would run nothing. Shell variables do not carry over between separate commands; set `L` again in each one.
+
 Pass bodies on stdin with `--body-file -` and a quoted heredoc. `add` and `merge-into` print the new id; capture it when the next command needs it: `ID=$($L add ...)`. A refusal prints `refused: <reason>` and exits 1. Read the reason and fix the cause; never work around a rule.
 
 Node types. Yours: `goal`, `task`, `question`, `finding`, `decision`, `fog`. The user's: `answer` (closes a question or task) and `comment` (everything else). Older maps can also hold `remark`, `user_question` and `constraint`; treat them as comments.
