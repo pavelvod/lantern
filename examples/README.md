@@ -25,10 +25,11 @@ All three maps are at round 7, and it is the user's turn.
 
 lantern reads maps from `<cwd>/.lantern/<slug>.json`, and the file name must match the map's slug. Copy the example into a working directory first. Then the UI changes only your copy, not the file in this repo.
 
-Set `LANTERN` to your lantern clone, then run:
+The plugin install does not include these examples, so clone the repo first. Then run:
 
 ```bash
-LANTERN=/path/to/lantern
+git clone https://github.com/pavelvod/lantern.git ~/lantern
+LANTERN=~/lantern
 mkdir -p /tmp/lantern-demo/.lantern
 cp "$LANTERN/examples/team-offsite.json" /tmp/lantern-demo/.lantern/
 cd /tmp/lantern-demo
